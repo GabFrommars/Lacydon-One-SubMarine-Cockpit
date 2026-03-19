@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COCKPIT SLC // NAVAL OPERATIONS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --c0:  #ffffff;
+  --c1:  #00d4ff;
+  --c2:  #0099cc;
+  --c3:  #006688;
+  --c4:  #004455;
+  --c5:  #002233;
+  --bg:  #020c14;
+  --bg2: #031520;
+  --border: rgba(0,212,255,0.18);
+  --border-hi: rgba(0,212,255,0.55);
+  --grid: rgba(0,212,255,0.035);
+  --dim: rgba(0,212,255,0.45);
+  --mono: 'Share Tech Mono', monospace;
+  --display: 'Orbitron', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--c1);
+  font-family: var(--mono);
+  font-size: 11px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cockpit-frame {
+  position: fixed; inset: 8px;
+  border: 1px solid var(--border);
+  pointer-events: none; z-index: 900;
+}
+.cockpit-frame::before, .cockpit-frame::after,
+.cf-bl, .cf-br {
+  content: '';
+  position: absolute;
+  width: 22px; height: 22px;
+  border-color: var(--c1);
+  border-style: solid;
+}
+.cockpit-frame::before { top:-1px; left:-1px;  border-width: 2px 0 0 2px; }
+.cockpit-frame::after  { top:-1px; right:-1px; border-width: 2px 2px 0 0; }
+.cf-bl { bottom:-1px; left:-1px;  border-width: 0 0 2px 2px; }
+.cf-br { bottom:-1px; right:-1px; border-width: 0 2px 2px 0; }
+
+.cockpit {
+  position: relative; z-index: 10;
+  display: grid;
+  grid-template-columns: 210px 1fr 210px;
+  grid-template-rows: 50px 1fr 190px 30px;
+  gap: 4px;
+  padding: 12px;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header.hdr {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.callsign {
+  font-family: var(--display);
+  font-size: 17px; font-weight: 900;
+  letter-spacing: .12em;
+  color: var(--c0);
+  text-shadow: 0 0 18px rgba(0,212,255,.55);
+}
+.callsign small {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px; font-weight: 400;
+  color: var(--dim);
+  letter-spacing: .09em;
+  margin-top: 2px;
+}
+
+.hdr-stats { display: flex; gap: 20px; align-items: center; }
+.hstat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hstat .sl { font-size: 9px; color: var(--dim); letter-spacing: .09em; }
+.hstat .sv { font-family: var(--display); font-size: 12px; font-weight: 700; color: var(--c0); }
+.hstat .sv.hl { color: var(--c1); }
+
+.clock-block { text-align: right; }
+.clock { font-family: var(--display); font-size: 22px; font-weight: 400; color: var(--c0); text-shadow: 0 0 10px rgba(0,212,255,.4); }
+.clock-date { font-size: 9px; color: var(--dim); letter-spacing: .08em; margin-top: 2px; }
+
+/* ── PANEL ── */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.panel::before {
+  content: attr(data-label);
+  position: absolute; top: 0; left: 8px;
+  font-size: 9px;
+  background: var(--c3);
+  color: var(--c0);
+  padding: 1px 7px;
+  letter-spacing: .09em;
+}
+.pc { margin-top: 14px; }
+
+.col-l { grid-column:1; grid-row:2/4; display:flex; flex-direction:column; gap:4px; }
+.col-c { grid-column:2; grid-row:2/4; display:flex; flex-direction:column; gap:4px; }
+.col-r { grid-column:3; grid-row:2/4; display:flex; flex-direction:column; gap:4px; }
+
+/* ── BOTTOM ── */
+.bottom {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  padding-top: 4px;
+  font-size: 10px; color: var(--dim);
+  overflow: hidden;
+}
+.ticker-wrap { flex:1; overflow:hidden; }
+.ticker-inner { white-space:nowrap; animation: ticker 50s linear infinite; display:inline-block; }
+@keyframes ticker { from{transform:translateX(100%)} to{transform:translateX(-300%)} }
+
+/* ── MARKET ROWS ── */
+.mrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0,212,255,.06);
+}
+.mrow:last-child { border-bottom: none; }
+.msym { font-family: var(--display); font-size: 9px; font-weight: 700; color: var(--dim); }
+.mprice { font-size: 12px; font-weight: 700; color: var(--c0); }
+/* shape-based direction: ▲ ▼ — no color difference */
+.mchg { font-size: 10px; color: var(--c1); }
+.mchg.neg { color: var(--c0); opacity:.7; }
+
+/* ── VIX GAUGE ── */
+.gauge-box { display:flex; flex-direction:column; align-items:center; padding:6px 0 2px; }
+.vix-val { font-family:var(--display); font-size:22px; font-weight:700; color:var(--c0); text-align:center; margin-top:-4px; }
+.vix-lbl { font-size:9px; color:var(--dim); letter-spacing:.1em; text-align:center; }
+
+/* ── OPTIONS HUD TABLE ── */
+.opt-tbl { width:100%; border-collapse:collapse; }
+.opt-tbl th {
+  font-size:9px; color:var(--dim); letter-spacing:.07em;
+  padding:3px 4px;
+  border-bottom:1px solid var(--border);
+  text-align:left; font-weight:400;
+}
+.opt-tbl td {
+  padding:4px 4px;
+  border-bottom:1px solid rgba(0,212,255,.05);
+  font-size:10px; vertical-align:middle;
+}
+.opt-tbl tr:hover td { background:rgba(0,212,255,.04); }
+
+/* Status shapes — purely shape+text, no color reliance */
+.status-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--c0);
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.status-chip .shape { font-size: 9px; }
+/* FIRE: ▲ double border white */
+.chip-fire { border-color: var(--c0); background: rgba(0,212,255,.08); }
+/* ROLL: ↻ standard border */
+.chip-roll { border-color: var(--c2); color: var(--c1); }
+/* HOLD: — dim */
+.chip-hold { border-color: var(--c4); color: var(--dim); }
+
+.decay-bar { width:50px; height:5px; background:rgba(0,212,255,.1); border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
+.decay-fill { height:100%; border-radius:3px; background:var(--c2); }
+
+/* ITM badge */
+.itm-badge {
+  font-size:8px; padding:1px 4px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.35);
+  color:var(--c0);
+  border-radius:2px;
+  font-weight:700;
+  letter-spacing:.05em;
+}
+.otm-badge {
+  font-size:8px; padding:1px 4px;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--dim);
+  border-radius:2px;
+}
+
+/* ── THETA COUNTER ── */
+.theta-big { font-family:var(--display); font-size:26px; font-weight:700; color:var(--c0); text-align:center; text-shadow:0 0 16px rgba(0,212,255,.45); letter-spacing:.04em; }
+.theta-lbl { font-size:9px; color:var(--dim); text-align:center; letter-spacing:.12em; margin-top:2px; }
+
+/* ── ALERT FEED ── */
+.alert-item {
+  display:flex; gap:6px; padding:4px 0;
+  border-bottom:1px solid rgba(0,212,255,.06);
+  align-items:flex-start;
+}
+.alert-item:last-child { border-bottom:none; }
+.alert-time { font-size:9px; color:var(--dim); white-space:nowrap; min-width:44px; }
+/* Priority encoded by prefix shape+label, not color */
+.alert-txt { font-size:10px; line-height:1.4; color:var(--c0); }
+.alert-txt.hi  { color:var(--c0); }
+.alert-txt.mid { color:var(--c1); }
+.alert-txt.lo  { color:var(--dim); }
+
+/* ── RADAR ── */
+.radar-wrap { position:relative; width:120px; height:120px; margin:0 auto; }
+
+/* ── IV RANK BARS ── */
+.ivrow { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+.ivsym { width:42px; font-size:9px; color:var(--dim); }
+.ivwrap { flex:1; height:6px; background:rgba(0,212,255,.08); border-radius:3px; overflow:hidden; position:relative; }
+.ivfill { height:100%; border-radius:3px; background:var(--c2); }
+.ivval { width:28px; font-size:9px; text-align:right; color:var(--c1); }
+.iv-threshold { position:absolute; top:-2px; height:10px; width:1px; background:var(--c0); opacity:.3; }
+
+/* ── WEAPONS ── */
+.wslot {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:4px 0;
+  border-bottom:1px solid rgba(0,212,255,.06);
+}
+.wslot:last-child { border-bottom:none; }
+.wlabel { font-family:var(--display); font-size:9px; font-weight:700; }
+.wprime { font-size:10px; color:var(--c1); }
+
+/* ── REFRESH ── */
+.rbtn {
+  font-family:var(--mono); font-size:10px;
+  padding:3px 10px;
+  background:transparent;
+  border:1px solid var(--border-hi);
+  color:var(--c0);
+  cursor:pointer;
+  letter-spacing:.08em;
+  transition:all .15s;
+}
+.rbtn:hover { background:rgba(0,212,255,.1); box-shadow:0 0 8px rgba(0,212,255,.3); }
+
+/* ── ANIMATIONS ── */
+@keyframes fadein { from{opacity:0;transform:translateY(3px)} to{opacity:1;transform:translateY(0)} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+@keyframes glow { 0%,100%{text-shadow:0 0 10px rgba(0,212,255,.35)} 50%{text-shadow:0 0 24px rgba(0,212,255,.75)} }
+.glow-anim { animation: glow 3.5s ease-in-out infinite; }
+.blink { animation: blink 1s infinite; }
+
+/* Crosshair overlay on center panel */
+.crosshair::before, .crosshair::after {
+  content:''; position:absolute; pointer-events:none;
+  background:rgba(0,212,255,.08);
+}
+.crosshair::before { left:50%; top:0; bottom:0; width:1px; }
+.crosshair::after  { top:50%; left:0; right:0; height:1px; }
+
+.loading { color:var(--dim); font-size:10px; letter-spacing:.1em; }
+.loading::after { content:'...'; animation:blink 1s infinite; }
+</style>
+</head>
+<body>
+
+<div class="cockpit-frame">
+  <div class="cf-bl"></div>
+  <div class="cf-br"></div>
+</div>
+
+<div class="cockpit">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div>
+      <div class="callsign glow-anim">RAFALE OPTIONS HUD
+        <small>PILOT: S.L. CALCEI // U***33320 // BASE EUR</small>
+      </div>
+    </div>
+    <div class="hdr-stats">
+      <div class="hstat"><span class="sl">NAV</span><span class="sv hl">€62 834</span></div>
+      <div class="hstat"><span class="sl">THETA/J</span><span class="sv hl" id="hdr-theta">+€62</span></div>
+      <div class="hstat"><span class="sl">CARRY/J</span><span class="sv">-€57</span></div>
+      <div class="hstat"><span class="sl">ALERTES</span><span class="sv blink" id="hdr-alerts">▲▲ 4 CRIT</span></div>
+      <div class="hstat"><span class="sl">DATA</span><span class="sv" id="data-status">STANDBY</span></div>
+    </div>
+    <div class="clock-block">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="clock-date" id="date-display">--- -- 2026</div>
+    </div>
+  </header>
+
+  <!-- LEFT -->
+  <div class="col-l">
+
+    <div class="panel" data-label="VIX // FEAR INDEX" style="flex:0 0 auto">
+      <div class="pc">
+        <div class="gauge-box">
+          <canvas id="vix-canvas" width="130" height="75"></canvas>
+          <div class="vix-val" id="vix-value">--.-</div>
+          <div class="vix-lbl" id="vix-status">LOADING</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" data-label="MARCHÉS // INDICES" style="flex:0 0 auto">
+      <div class="pc" id="indices-panel"><div class="loading">ACQUISITION</div></div>
+    </div>
+
+    <div class="panel" data-label="TAUX // FOREX" style="flex:0 0 auto">
+      <div class="pc" id="rates-panel"><div class="loading">ACQUISITION</div></div>
+    </div>
+
+    <div class="panel" data-label="RADAR // EXPOSITION" style="flex:1">
+      <div class="pc">
+        <div class="radar-wrap"><canvas id="radar-canvas" width="120" height="120"></canvas></div>
+        <div style="font-size:9px;color:var(--dim);text-align:center;margin-top:4px;letter-spacing:.07em">SECTORIEL</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTER -->
+  <div class="col-c">
+
+    <div class="panel crosshair" data-label="HUD // VISEUR OPTIONS — POSITIONS COURTES" style="flex:1;position:relative">
+      <div class="pc" style="margin-top:16px">
+        <table class="opt-tbl">
+          <thead>
+            <tr>
+              <th>CIBLE</th><th>TYPE</th><th>STRIKE</th><th>COURS</th>
+              <th>J</th><th>IV%</th><th>DÉCOTE</th><th>Θ/J</th><th>STATUT</th>
+            </tr>
+          </thead>
+          <tbody id="opt-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" data-label="ALERTES // FEED" style="flex:0 0 auto;min-height:130px">
+      <div class="pc">
+        <div style="display:grid;grid-template-columns:1fr 140px;gap:12px">
+          <div id="alert-feed"></div>
+          <div style="border-left:1px solid var(--border);padding-left:12px">
+            <div class="theta-big" id="theta-disp">+€62</div>
+            <div class="theta-lbl">THÊTA NET/JOUR</div>
+            <div style="margin-top:10px">
+              <div style="font-size:9px;color:var(--dim);letter-spacing:.09em;margin-bottom:4px">CARRY COVERAGE</div>
+              <div style="width:100%;height:8px;background:rgba(0,212,255,.08);border-radius:4px;overflow:hidden">
+                <div id="carry-bar" style="height:100%;background:var(--c2);border-radius:4px;width:109%;transition:width .5s"></div>
+              </div>
+              <div style="font-size:10px;color:var(--c1);text-align:center;margin-top:3px" id="carry-pct">109%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="col-r">
+
+    <div class="panel" data-label="PRE-MKT // LIGNES PORTEFEUILLE" style="flex:1">
+      <div class="pc" id="stocks-panel"><div class="loading">ACQUISITION</div></div>
+    </div>
+
+    <div class="panel" data-label="IV RANK // CONDITIONS VENTE" style="flex:0 0 auto">
+      <div class="pc" id="iv-panel">
+        <div id="iv-bars"></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:5px">
+          <span>FORT &gt;60</span><span>NEUTRE</span><span>FAIBLE &lt;40</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" data-label="ARMEMENT // CALLS NON LANCÉS" style="flex:0 0 auto">
+      <div class="pc" id="weapons-panel">
+        <div class="wslot"><span class="wlabel">MARA</span><span class="wprice">IV 85%</span><span class="status-chip chip-fire"><span class="shape">▲</span>CIBLE</span></div>
+        <div class="wslot"><span class="wlabel">AMZN</span><span class="wprice">IV 34%</span><span class="status-chip chip-roll"><span class="shape">↻</span>READY</span></div>
+        <div class="wslot"><span class="wlabel">AAPL</span><span class="wprice">IV 28%</span><span class="status-chip chip-roll"><span class="shape">↻</span>READY</span></div>
+        <div class="wslot"><span class="wlabel">AVGO</span><span class="wprice">IV 35%</span><span class="status-chip chip-fire"><span class="shape">▲</span>CIBLE</span></div>
+        <div class="wslot"><span class="wlabel">META</span><span class="wprice">IV 33%</span><span class="status-chip chip-hold"><span class="shape">—</span>WAIT</span></div>
+        <div class="wslot"><span class="wlabel">RACE</span><span class="wprice">IV 25%</span><span class="status-chip chip-hold"><span class="shape">—</span>WAIT</span></div>
+      </div>
+    </div>
+
+    <div class="panel" data-label="CONTRÔLES" style="flex:0 0 auto">
+      <div class="pc" style="display:flex;flex-direction:column;gap:6px">
+        <button class="rbtn" id="btn-refresh">↻  ACTUALISER DONNÉES</button>
+        <div style="font-size:9px;color:var(--dim);line-height:1.6" id="last-update">
+          UPDATE: --:--:--<br>SOURCE: YAHOO FINANCE
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM TICKER -->
+  <div class="bottom">
+    <span style="font-family:var(--display);font-size:9px;font-weight:700;color:var(--dim);white-space:nowrap;flex-shrink:0">SLC//FEED</span>
+    <div class="ticker-wrap">
+      <div class="ticker-inner" id="ticker-text">INITIALISATION SYSTÈME — ACQUISITION DONNÉES MARCHÉ...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PROXY = 'https://api.allorigins.win/raw?url=';
+const YF    = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+
+const INDICES = [
+  {sym:'^GSPC', label:'S&P500'},{sym:'^NDX', label:'NASDAQ'},
+  {sym:'^VIX',  label:'VIX'  },{sym:'^STOXX50E', label:'EURO STOXX'},
+];
+const RATES = [
+  {sym:'EURUSD=X', label:'EUR/USD'},{sym:'GC=F', label:'OR $/oz'},
+  {sym:'CL=F',     label:'WTI'   },{sym:'^TNX', label:'US10Y%'},
+];
+const STOCKS = ['AAPL','AMZN','ANET','AVGO','GOOG','JPM','MARA','META','MSFT','NVDA','ORCL','PANW','PEP','PLTR','VRT','RACE'];
+
+const OPTIONS = [
+  {sym:'ANET 135C', t:'C', k:135, s:136.07, dte:1,  iv:38, pi:619,  va:325,  th:5.0, act:'fire'},
+  {sym:'PANW 165C', t:'C', k:165, s:168.91, dte:1,  iv:40, pi:202,  va:491,  th:5.2, act:'fire'},
+  {sym:'HON 235P',  t:'P', k:235, s:230.5,  dte:22, iv:30, pi:423,  va:832,  th:2.2, act:'fire'},
+  {sym:'BN 42P',    t:'P', k:42,  s:39.25,  dte:29, iv:28, pi:599,  va:624,  th:1.9, act:'roll'},
+  {sym:'ORCL 175C', t:'C', k:175, s:152.9,  dte:29, iv:28, pi:803,  va:194,  th:0.8, act:'roll'},
+  {sym:'PEP 165C',  t:'C', k:165, s:153.54, dte:29, iv:18, pi:362,  va:133,  th:1.2, act:'roll'},
+  {sym:'AMZN 225C', t:'C', k:225, s:209.87, dte:29, iv:34, pi:406,  va:216,  th:1.8, act:'roll'},
+  {sym:'VRT 280C',  t:'C', k:280, s:264.71, dte:36, iv:48, pi:1933, va:1708, th:2.8, act:'hold'},
+  {sym:'PLTR 170C', t:'C', k:170, s:152.77, dte:57, iv:62, pi:969,  va:736,  th:2.1, act:'hold'},
+  {sym:'GOOG 315C', t:'C', k:315, s:306.3,  dte:29, iv:31, pi:686,  va:658,  th:1.5, act:'hold'},
+  {sym:'JPM 300C',  t:'C', k:300, s:287.74, dte:29, iv:27, pi:488,  va:508,  th:1.6, act:'hold'},
+  {sym:'NVDA 190C', t:'C', k:190, s:180.4,  dte:29, iv:55, pi:402,  va:353,  th:1.9, act:'hold'},
+];
+
+const IV_DATA = [
+  {sym:'MARA',iv:85,rank:72},{sym:'PLTR',iv:62,rank:70},
+  {sym:'NVDA',iv:55,rank:68},{sym:'VRT',iv:48,rank:65},
+  {sym:'AVGO',iv:35,rank:61},{sym:'PANW',iv:40,rank:58},
+  {sym:'AMZN',iv:34,rank:55},{sym:'GOOG',iv:31,rank:50},
+  {sym:'ANET',iv:38,rank:48},
+];
+
+const ALERTS = [
+  {t:'09:31',txt:'▲▲ ANET 135C ITM +1.07$ — ASSIGNATION J-1 — ACTION REQUISE',       p:'hi'},
+  {t:'09:30',txt:'▲▲ PANW 165C ITM +3.91$ — ASSIGNATION J-1 — ACTION REQUISE',       p:'hi'},
+  {t:'09:28',txt:'▲  HON 235P ITM -4.5$ — ROULEMENT MAI RECOMMANDÉ',                  p:'mid'},
+  {t:'09:25',txt:'↻  ORCL 175C: décote 76% — CLÔTURE ANTICIPÉE POSSIBLE',             p:'mid'},
+  {t:'09:22',txt:'↻  PEP 165C: décote 63% — CLÔTURE ANTICIPÉE POSSIBLE',              p:'mid'},
+  {t:'09:18',txt:'—  BN 42P ITM -2.75$ — ROULEMENT 38P MAI ENVISAGEABLE',             p:'lo'},
+];
+
+const SECTORS = [
+  {k:'TECH',   pct:56},{k:'REIT',  pct:14},{k:'FIN',   pct:12},
+  {k:'AUTRE',  pct:9}, {k:'CRYPTO',pct:5}, {k:'DEF',   pct:4},
+];
+
+// ── Clock ──
+const pad = x => String(x).padStart(2,'0');
+function tickClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  const D=['DIM','LUN','MAR','MER','JEU','VEN','SAM'];
+  const M=['JAN','FEV','MAR','AVR','MAI','JUN','JUL','AOU','SEP','OCT','NOV','DEC'];
+  document.getElementById('date-display').textContent = `${D[n.getDay()]} ${pad(n.getDate())} ${M[n.getMonth()]} ${n.getFullYear()}`;
+}
+setInterval(tickClock,1000); tickClock();
+
+// ── VIX Gauge — monochrome ──
+function drawVix(val) {
+  const c = document.getElementById('vix-canvas');
+  const ctx = c.getContext('2d');
+  const cx=65,cy=70,r=52;
+  ctx.clearRect(0,0,130,75);
+
+  // Background arc
+  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,2*Math.PI);
+  ctx.strokeStyle='rgba(0,212,255,0.1)'; ctx.lineWidth=8; ctx.stroke();
+
+  // Filled arc proportional to value
+  const frac = Math.min(val/80,1);
+  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,Math.PI+frac*Math.PI);
+  ctx.strokeStyle='rgba(0,212,255,0.8)'; ctx.lineWidth=7; ctx.stroke();
+
+  // Tick marks at 20, 40, 60
+  [20,40,60].forEach(v=>{
+    const a = Math.PI + (v/80)*Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx+(r-10)*Math.cos(a), cy+(r-10)*Math.sin(a));
+    ctx.lineTo(cx+(r+2)*Math.cos(a),  cy+(r+2)*Math.sin(a));
+    ctx.strokeStyle='rgba(0,212,255,0.35)'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  // Needle
+  const na = Math.PI + frac*Math.PI;
+  ctx.beginPath();
+  ctx.moveTo(cx,cy);
+  ctx.lineTo(cx+(r-8)*Math.cos(na), cy+(r-8)*Math.sin(na));
+  ctx.strokeStyle='#ffffff'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,4,0,2*Math.PI);
+  ctx.fillStyle='#00d4ff'; ctx.fill();
+
+  // Labels
+  ctx.fillStyle='rgba(0,212,255,0.4)'; ctx.font='9px Share Tech Mono';
+  ctx.fillText('0',8,68); ctx.fillText('40',57,14); ctx.fillText('80',108,68);
+}
+
+// ── Radar ──
+function drawRadar() {
+  const c = document.getElementById('radar-canvas');
+  const ctx = c.getContext('2d');
+  const cx=60,cy=60,r=48, n=SECTORS.length;
+  ctx.clearRect(0,0,120,120);
+
+  [.25,.5,.75,1].forEach(f=>{
+    ctx.beginPath(); ctx.arc(cx,cy,r*f,0,2*Math.PI);
+    ctx.strokeStyle='rgba(0,212,255,0.09)'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  SECTORS.forEach((_,i)=>{
+    const a=(i/n)*2*Math.PI-Math.PI/2;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
+    ctx.strokeStyle='rgba(0,212,255,0.13)'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  ctx.beginPath();
+  SECTORS.forEach((s,i)=>{
+    const a=(i/n)*2*Math.PI-Math.PI/2, f=s.pct/70;
+    const x=cx+r*f*Math.cos(a), y=cy+r*f*Math.sin(a);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.closePath();
+  ctx.fillStyle='rgba(0,212,255,0.1)'; ctx.fill();
+  ctx.strokeStyle='rgba(0,212,255,0.6)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  ctx.fillStyle='rgba(0,212,255,0.55)'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  SECTORS.forEach((s,i)=>{
+    const a=(i/n)*2*Math.PI-Math.PI/2;
+    ctx.fillText(s.k, cx+(r+13)*Math.cos(a), cy+(r+13)*Math.sin(a)+3);
+  });
+}
+
+// ── Options HUD ──
+function renderOpts(pmap) {
+  const tb = document.getElementById('opt-body');
+  tb.innerHTML = '';
+  OPTIONS.forEach(o=>{
+    const d = Math.round((1-o.va/o.pi)*100);
+    const lp = pmap[o.sym.split(' ')[0]] || o.s;
+    const delta = lp - o.s;
+    const itm = o.t==='C' ? lp>o.k : lp<o.k;
+    const badge = itm
+      ? '<span class="itm-badge">ITM</span>'
+      : '<span class="otm-badge">OTM</span>';
+
+    // Status chips — shape + text only
+    const chipMap = {
+      fire:'<span class="status-chip chip-fire"><span class="shape">▲</span>FIRE</span>',
+      roll:'<span class="status-chip chip-roll"><span class="shape">↻</span>ROLL</span>',
+      hold:'<span class="status-chip chip-hold"><span class="shape">—</span>HOLD</span>',
+    };
+
+    // DTE urgency — bold + prefix, not color
+    const dteStr = o.dte<=2
+      ? `<strong>▲J-${o.dte}</strong>`
+      : o.dte<=14
+      ? `J-${o.dte}`
+      : `<span style="color:var(--dim)">J-${o.dte}</span>`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:var(--display);font-size:9px;font-weight:700;color:${o.act==='fire'?'var(--c0)':'var(--c1)'}">${o.sym}</td>
+      <td><span style="font-size:9px;padding:1px 5px;border:1px solid var(--border);border-radius:2px;color:${o.t==='C'?'var(--c0)':'var(--dim)'}">${o.t==='C'?'CALL':'PUT'}</span></td>
+      <td style="font-family:var(--display);font-size:9px">$${o.k}</td>
+      <td style="font-family:var(--display);font-size:9px">$${lp.toFixed(2)} ${badge}</td>
+      <td style="font-size:10px">${dteStr}</td>
+      <td style="font-size:10px;color:${o.iv>=60?'var(--c0)':'var(--dim)'}">${o.iv}%</td>
+      <td><div style="display:flex;align-items:center;gap:4px"><div class="decay-bar"><div class="decay-fill" style="width:${Math.min(d,100)}%;opacity:${0.4+d/100*.6}"></div></div><span style="font-size:10px">${d}%</span></div></td>
+      <td style="color:var(--c1)">€${o.th.toFixed(1)}</td>
+      <td>${chipMap[o.act]}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+// ── IV bars ──
+function renderIV() {
+  document.getElementById('iv-bars').innerHTML = IV_DATA.map(iv=>{
+    const w = iv.rank;
+    const tpx = Math.round(60/100*80);
+    const textW = iv.rank>=60?'var(--c0)':iv.rank>=40?'var(--c1)':'var(--dim)';
+    return `<div class="ivrow">
+      <span class="ivsym">${iv.sym}</span>
+      <div class="ivwrap">
+        <div class="ivfill" style="width:${w}%;opacity:${.35+w/100*.65}"></div>
+        <div class="iv-threshold" style="left:${tpx}px"></div>
+      </div>
+      <span class="ivval" style="color:${textW}">${iv.rank}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Alerts ──
+function renderAlerts() {
+  document.getElementById('alert-feed').innerHTML = ALERTS.map(a=>`
+    <div class="alert-item">
+      <span class="alert-time">${a.t}</span>
+      <span class="alert-txt ${a.p}">${a.txt}</span>
+    </div>`).join('');
+}
+
+// ── Yahoo Finance fetch ──
+async function fetchQ(sym) {
+  try {
+    const url = `${YF}${encodeURIComponent(sym)}?interval=1d&range=2d`;
+    const r = await fetch(`${PROXY}${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(7000)});
+    if(!r.ok) throw new Error();
+    const j = await r.json();
+    const meta = j?.chart?.result?.[0]?.meta;
+    if(!meta) throw new Error();
+    const price = meta.regularMarketPrice || meta.previousClose;
+    const prev  = meta.previousClose || price;
+    return {price, prev, chg:price-prev, pct:(price-prev)/prev*100, sym};
+  } catch { return null; }
+}
+
+function fmtRow(label, d, dec=2) {
+  if(!d) return `<div class="mrow"><span class="msym">${label}</span><span class="mprice" style="color:var(--dim)">N/A</span></div>`;
+  const arrow = d.chg>=0?'▲':'▼';
+  const cls   = d.chg>=0?'':'neg';
+  return `<div class="mrow">
+    <span class="msym">${label}</span>
+    <span class="mprice">${d.price.toLocaleString('fr-FR',{maximumFractionDigits:dec})}</span>
+    <span class="mchg ${cls}">${arrow}${Math.abs(d.pct).toFixed(2)}%</span>
+  </div>`;
+}
+
+async function refresh() {
+  document.getElementById('data-status').textContent = 'ACQUIRING';
+  const all = [...INDICES.map(s=>s.sym), ...RATES.map(s=>s.sym), ...STOCKS];
+  const res = await Promise.all(all.map(fetchQ));
+  const dm  = {};
+  all.forEach((s,i)=>{ if(res[i]) dm[s]=res[i]; });
+
+  // VIX
+  const vd = dm['^VIX'];
+  const vv = vd ? vd.price : 22;
+  drawVix(vv);
+  document.getElementById('vix-value').textContent = vd ? vv.toFixed(2) : 'N/A';
+  const vs = vv<15?'CALM':vv<20?'NORMAL':vv<25?'ELEVATED':vv<30?'HIGH':'FEAR MODE';
+  document.getElementById('vix-status').textContent = vs;
+
+  // Indices (exclude VIX from panel)
+  document.getElementById('indices-panel').innerHTML =
+    INDICES.filter(s=>s.sym!=='^VIX').map(s=>fmtRow(s.label,dm[s.sym],1)).join('');
+
+  // Rates
+  document.getElementById('rates-panel').innerHTML =
+    RATES.map(s=>fmtRow(s.label,dm[s.sym],s.sym.includes('=X')?4:s.sym==='^TNX'?3:2)).join('');
+
+  // Stocks
+  const pmap = {};
+  document.getElementById('stocks-panel').innerHTML = STOCKS.map(sym=>{
+    const d = dm[sym];
+    if(d) pmap[sym]=d.price;
+    if(!d) return `<div class="mrow"><span class="msym" style="font-size:9px">${sym}</span><span style="color:var(--dim)">N/A</span></div>`;
+    const arr = d.chg>=0?'▲':'▼';
+    const cls = d.chg>=0?'':'neg';
+    return `<div class="mrow">
+      <span class="msym" style="font-family:var(--display);font-size:9px">${sym}</span>
+      <span class="mprice" style="font-size:10px">$${d.price.toFixed(2)}</span>
+      <span class="mchg ${cls}">${arr}${Math.abs(d.pct).toFixed(2)}%</span>
+    </div>`;
+  }).join('');
+
+  renderOpts(pmap);
+
+  // Ticker
+  const ticks = [...INDICES,...RATES].map(s=>{
+    const d=dm[s.sym];
+    return d?`${s.label}: ${d.price.toFixed(2)} ${d.chg>=0?'▲':'▼'}${Math.abs(d.pct).toFixed(2)}%`:'';
+  }).filter(Boolean);
+  STOCKS.forEach(sym=>{ const d=dm[sym]; if(d) ticks.push(`${sym}: $${d.price.toFixed(2)} ${d.chg>=0?'▲':'▼'}${Math.abs(d.pct).toFixed(2)}%`); });
+  document.getElementById('ticker-text').textContent = ticks.join('   ·   ');
+
+  const n=new Date();
+  document.getElementById('last-update').innerHTML = `UPDATE: ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}<br>SOURCE: YAHOO FINANCE`;
+  document.getElementById('data-status').textContent = 'LIVE';
+}
+
+// Theta drift animation
+let tBase=62;
+setInterval(()=>{
+  tBase += (Math.random()-.5)*.08;
+  const v=Math.max(58,Math.min(68,tBase));
+  document.getElementById('theta-disp').textContent=`+€${v.toFixed(0)}`;
+  document.getElementById('hdr-theta').textContent=`+€${v.toFixed(0)}`;
+  const cov=Math.round(v/57*100);
+  document.getElementById('carry-bar').style.width=Math.min(cov,130)+'%';
+  document.getElementById('carry-pct').textContent=cov+'%';
+},4000);
+
+document.getElementById('btn-refresh').addEventListener('click',refresh);
+
+// Boot
+drawVix(22); drawRadar(); renderIV(); renderAlerts(); renderOpts({});
+refresh();
+setInterval(refresh,60000);
+</script>
+</body>
+</html>
