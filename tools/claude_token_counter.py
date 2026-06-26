@@ -67,6 +67,61 @@ WH_PER_INPUT_TOKEN = 0.00006   # ~10x moins cher par token d'entrée (prefill)
 # région (ex. France ~50, USA ~370) pour affiner.
 GRID_CARBON_G_PER_KWH = 480.0
 
+# --- Références pour le convertisseur pédagogique ----------------------------
+# Repères du quotidien pour rendre les Wh / g de CO2 parlants.
+LED_BULB_WATTS = 9.0           # lampe LED basse conso typique (9 W)
+SMARTPHONE_CHARGE_WH = 12.0    # une charge complète de smartphone (~12 Wh)
+CAR_CO2_G_PER_KM = 120.0       # voiture thermique moyenne (~120 gCO2/km)
+
+
+def _fmt_duration(hours: float) -> str:
+    """Met en forme une durée (en heures) de façon lisible."""
+    seconds = hours * 3600
+    if seconds < 60:
+        return f"{seconds:.0f} s"
+    if seconds < 3600:
+        return f"{seconds / 60:.1f} min"
+    if hours < 24:
+        return f"{hours:.1f} h"
+    return f"{hours / 24:.1f} jours"
+
+
+def pedagogical_equivalents(energy_wh: float, co2_g: float) -> str:
+    """Traduit une énergie (Wh) et un CO2 (g) en équivalents du quotidien.
+
+    Rend les chiffres parlants : durée d'une lampe LED basse conso, kWh,
+    charges de smartphone, distance en voiture pour le même CO2.
+    """
+    kwh = energy_wh / 1000.0
+    lamp_hours = energy_wh / LED_BULB_WATTS          # Wh / W = heures
+    charges = energy_wh / SMARTPHONE_CHARGE_WH
+    car_km = co2_g / CAR_CO2_G_PER_KM
+    return "\n".join([
+        f"  = {kwh:.6f} kWh",
+        f"  = lampe LED {LED_BULB_WATTS:g} W allumée pendant {_fmt_duration(lamp_hours)}",
+        f"  = {charges:.3f} charge(s) de smartphone",
+        f"  = {car_km * 1000:.1f} m en voiture (même CO2, ~{CAR_CO2_G_PER_KM:g} g/km)",
+    ])
+
+
+def projection(energy_wh: float, co2_g: float, interactions_per_day: float) -> str:
+    """Projette la conso d'UNE interaction sur l'heure / le jour / le mois.
+
+    Sert à répondre à « ce que je rejette par heure / par jour » si je fais
+    `interactions_per_day` interactions équivalentes chaque jour.
+    """
+    per_hour_e = energy_wh * interactions_per_day / 24.0
+    per_hour_c = co2_g * interactions_per_day / 24.0
+    per_day_e, per_day_c = energy_wh * interactions_per_day, co2_g * interactions_per_day
+    per_month_e, per_month_c = per_day_e * 30, per_day_c * 30
+    return "\n".join([
+        f"Projection ({interactions_per_day:g} interaction(s) équivalentes / jour) :",
+        f"  par heure : {per_hour_e:.4f} Wh   | {per_hour_c:.4f} g CO2",
+        f"  par jour  : {per_day_e:.4f} Wh   | {per_day_c:.4f} g CO2",
+        f"  par mois  : {per_month_e / 1000:.4f} kWh | {per_month_c:.1f} g CO2"
+        f" (~{per_month_c / CAR_CO2_G_PER_KM:.2f} km en voiture)",
+    ])
+
 
 def count_input_tokens(
     client: anthropic.Anthropic,
@@ -199,6 +254,7 @@ class UsageTracker:
             f"Coût estimé         : ${self.total_cost:.4f}",
             f"Énergie estimée*    : {self.energy_wh:.4f} Wh",
             f"CO2 estimé*         : {self.co2_grams:.4f} g",
+            pedagogical_equivalents(self.energy_wh, self.co2_grams),
             "  * estimations indicatives (pas de chiffre officiel Anthropic) ;",
             f"    base : {WH_PER_OUTPUT_TOKEN} Wh/token sortie, {GRID_CARBON_G_PER_KWH:g} gCO2/kWh.",
         ]
@@ -229,7 +285,24 @@ def main() -> None:
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Identifiant du modèle.")
     parser.add_argument("--count", metavar="TEXTE", help="Estime les tokens d'un texte (sans génération).")
     parser.add_argument("--demo", action="store_true", help="Appel réel + cumul de la consommation.")
+    parser.add_argument("--convert", metavar="WH", type=float,
+                        help="Convertit une énergie (Wh) en unités pédagogiques (hors ligne, sans clé).")
+    parser.add_argument("--co2", metavar="G", type=float, default=None,
+                        help="CO2 en grammes pour --convert (sinon estimé via l'intensité réseau).")
+    parser.add_argument("--per-day", metavar="N", type=float, default=None,
+                        help="Projette --convert sur l'heure/jour/mois pour N interactions/jour.")
     args = parser.parse_args()
+
+    # --convert fonctionne hors ligne : pas besoin de clé API.
+    if args.convert is not None:
+        energy_wh = args.convert
+        co2_g = args.co2 if args.co2 is not None else (energy_wh / 1000.0) * GRID_CARBON_G_PER_KWH
+        print(f"{energy_wh:.4f} Wh  |  {co2_g:.4f} g CO2")
+        print(pedagogical_equivalents(energy_wh, co2_g))
+        if args.per_day is not None:
+            print()
+            print(projection(energy_wh, co2_g, args.per_day))
+        return
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
         parser.error("Définis la variable d'environnement ANTHROPIC_API_KEY.")
@@ -242,7 +315,7 @@ def main() -> None:
     elif args.demo:
         _demo(client, args.model)
     else:
-        parser.error("Précise --count \"...\" ou --demo.")
+        parser.error("Précise --count \"...\", --demo, ou --convert WH.")
 
 
 if __name__ == "__main__":
