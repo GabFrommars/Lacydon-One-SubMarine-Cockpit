@@ -73,6 +73,12 @@ LED_BULB_WATTS = 9.0           # lampe LED basse conso typique (9 W)
 SMARTPHONE_CHARGE_WH = 12.0    # une charge complète de smartphone (~12 Wh)
 CAR_CO2_G_PER_KM = 120.0       # voiture thermique moyenne (~120 gCO2/km)
 
+# CO2 qu'un humain EXPIRE par jour (respiration), ~1 kg. ⚠️ Carbone biogénique
+# (issu de l'alimentation), neutre pour le climat — repère pédagogique, à ne pas
+# confondre avec l'empreinte carbone d'un mode de vie (~11 kg/j monde, ~25 kg/j
+# France). Mettre 11000 ou 25000 ici pour comparer plutôt à l'empreinte.
+HUMAN_CO2_G_PER_DAY = 1000.0
+
 
 def _fmt_duration(hours: float) -> str:
     """Met en forme une durée (en heures) de façon lisible."""
@@ -96,11 +102,13 @@ def pedagogical_equivalents(energy_wh: float, co2_g: float) -> str:
     lamp_hours = energy_wh / LED_BULB_WATTS          # Wh / W = heures
     charges = energy_wh / SMARTPHONE_CHARGE_WH
     car_km = co2_g / CAR_CO2_G_PER_KM
+    human_pct = co2_g / HUMAN_CO2_G_PER_DAY * 100.0  # % d'une journée de respiration
     return "\n".join([
         f"  = {kwh:.6f} kWh",
         f"  = lampe LED {LED_BULB_WATTS:g} W allumée pendant {_fmt_duration(lamp_hours)}",
         f"  = {charges:.3f} charge(s) de smartphone",
         f"  = {car_km * 1000:.1f} m en voiture (même CO2, ~{CAR_CO2_G_PER_KM:g} g/km)",
+        f"  = {human_pct:.3f} % du CO2 qu'un humain expire en 1 jour (~{HUMAN_CO2_G_PER_DAY / 1000:g} kg)",
     ])
 
 
